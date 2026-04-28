@@ -1,5 +1,7 @@
+import sys
 import json
 import time
+import queue
 import threading
 import pathlib
 from datetime import datetime
@@ -10,6 +12,11 @@ from rich.rule import Rule
 from rich.align import Align
 from rich.text import Text
 from rich.prompt import Prompt
+try:
+    from pynput import keyboard as pynput_keyboard
+    _HAVE_PYNPUT = True
+except ImportError:
+    _HAVE_PYNPUT = False
 
 try:
     from nyct_gtfs import NYCTFeed
@@ -244,6 +251,27 @@ def _no_trains_row(station_name: str) -> Table:
     return t
 
 
+# ── Keypress listener ─────────────────────────────────────────────────────────
+
+_key_queue: queue.Queue = queue.Queue()
+
+def _start_key_listener():
+    """Start a pynput keyboard listener that pushes chars to _key_queue."""
+    if not _HAVE_PYNPUT:
+        return None
+
+    def on_press(key):
+        try:
+            _key_queue.put(key.char)
+        except AttributeError:
+            pass
+
+    listener = pynput_keyboard.Listener(on_press=on_press)
+    listener.daemon = True
+    listener.start()
+    return listener
+
+
 # ── Main TUI loop ─────────────────────────────────────────────────────────────
 
 def run_tui(stop_id: str, station: dict, lines: list):
@@ -253,6 +281,12 @@ def run_tui(stop_id: str, station: dict, lines: list):
 
     console = Console(style=f"on {BG}")
     console.clear()
+
+    # Drain any stale keypresses from a previous run
+    while not _key_queue.empty():
+        _key_queue.get_nowait()
+
+    listener = _start_key_listener()
 
     if not demo_mode:
         worker = threading.Thread(
@@ -316,6 +350,7 @@ def run_tui(stop_id: str, station: dict, lines: list):
                     row2 = _empty_row()
 
             header = Align.center(f"[bold {TEXT}]{station_name}[/]")
+            footer = Align.right(f"[dim #3a4a5e]r — change station[/]  ")
 
             live.update(Group(
                 header,
@@ -323,7 +358,20 @@ def run_tui(stop_id: str, station: dict, lines: list):
                 row1,
                 Rule(style=SEP),
                 row2,
+                footer,
             ))
+
+            # Check for keypress
+            try:
+                key = _key_queue.get_nowait()
+                if key == "r":
+                    if listener: listener.stop()
+                    return "back"
+                elif key in ("q",):
+                    if listener: listener.stop()
+                    return "quit"
+            except queue.Empty:
+                pass
 
             time.sleep(0.125)
 
@@ -337,5 +385,8 @@ if __name__ == "__main__":
         print("Error: stations.json not found. Place it in the same directory as this script.")
         raise SystemExit(1)
 
-    stop_id, station, lines = pick_station(stations)
-    run_tui(stop_id, station, lines)
+    while True:
+        stop_id, station, lines = pick_station(stations)
+        result = run_tui(stop_id, station, lines)
+        if result == "quit":
+            break
