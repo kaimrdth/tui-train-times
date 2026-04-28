@@ -16,6 +16,7 @@ Terminal countdown clock for NYC MTA subway arrivals. Modeled after the platform
 
 ```bash
 pip install nyct-gtfs rich
+pip install pynput
 ```
 
 Place `traintime.py` and `stations.json` in the same directory.
