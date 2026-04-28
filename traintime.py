@@ -390,3 +390,9 @@ if __name__ == "__main__":
         result = run_tui(stop_id, station, lines)
         if result == "quit":
             break
+        # Drain any queued keypresses and flush stdin before re-entering picker
+        time.sleep(0.1)
+        while not _key_queue.empty():
+            _key_queue.get_nowait()
+        import termios
+        termios.tcflush(sys.stdin, termios.TCIFLUSH)
