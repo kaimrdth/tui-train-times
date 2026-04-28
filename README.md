@@ -8,12 +8,7 @@ Terminal countdown clock for NYC MTA subway arrivals. Modeled after the platform
 
 ---
 
-![Station search](assets/ttt1.png)
-![Search results with line bullets](assets/ttt2.png)
-![Line filter](assets/ttt3.png)
-![Kingston-Throop Avs countdown](assets/ttt4.png)
-![34th St search results](assets/ttt5.png)
-![34 St-Hudson Yards DUE](assets/ttt6.png)
+![tui-train-times in action](assets/ttt.gif)
 
 ---
 
