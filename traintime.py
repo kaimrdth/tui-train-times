@@ -305,75 +305,86 @@ def run_tui(stop_id: str, station: dict, lines: list):
     flipping       = False
     flip_target    = None
 
-    with Live(console=console, screen=True, refresh_per_second=8) as live:
-        while True:
-            arrivals = (demo_arrivals(station, lines) if demo_mode else latest_arrivals)[:4]
+    while True:
+        try:
+            with Live(console=console, screen=True, refresh_per_second=8) as live:
+                while True:
+                    arrivals = (demo_arrivals(station, lines) if demo_mode else latest_arrivals)[:4]
 
-            now     = time.time()
-            elapsed = now - last_page_time
+                    now     = time.time()
+                    elapsed = now - last_page_time
 
-            num_pages = max(1, (len(arrivals) + 1) // 2)
+                    num_pages = max(1, (len(arrivals) + 1) // 2)
 
-            if elapsed >= PAGE_DURATION and not flipping:
-                next_page = (current_page + 1) % num_pages
-                if next_page != current_page:
-                    flipping       = True
-                    flip_frame     = 0
-                    flip_target    = next_page
-                    last_page_time = now
+                    if elapsed >= PAGE_DURATION and not flipping:
+                        next_page = (current_page + 1) % num_pages
+                        if next_page != current_page:
+                            flipping       = True
+                            flip_frame     = 0
+                            flip_target    = next_page
+                            last_page_time = now
 
-            if flipping:
-                flip_frame += 1
-                if flip_frame >= FLIP_FRAMES:
-                    flipping     = False
-                    current_page = flip_target
-                    flip_frame   = FLIP_FRAMES
-
-            start      = current_page * 2
-            page_slice = arrivals[start:start + 2]
-
-            if not arrivals:
-                row1 = _no_trains_row(station["name"])
-                row2 = _empty_row()
-            else:
-                row1_arr = page_slice[0] if len(page_slice) > 0 else None
-                row2_arr = page_slice[1] if len(page_slice) > 1 else None
-
-                row1 = render_row(row1_arr, start + 1, colors) if row1_arr else _empty_row()
-
-                if row2_arr:
                     if flipping:
-                        row2 = render_flip_frame(row2_arr, start + 2, flip_frame, FLIP_FRAMES, colors)
+                        flip_frame += 1
+                        if flip_frame >= FLIP_FRAMES:
+                            flipping     = False
+                            current_page = flip_target
+                            flip_frame   = FLIP_FRAMES
+
+                    start      = current_page * 2
+                    page_slice = arrivals[start:start + 2]
+
+                    if not arrivals:
+                        row1 = _no_trains_row(station["name"])
+                        row2 = _empty_row()
                     else:
-                        row2 = render_row(row2_arr, start + 2, colors)
-                else:
-                    row2 = _empty_row()
+                        row1_arr = page_slice[0] if len(page_slice) > 0 else None
+                        row2_arr = page_slice[1] if len(page_slice) > 1 else None
 
-            header = Align.center(f"[bold {TEXT}]{station_name}[/]")
-            footer = Align.right(f"[dim #3a4a5e]r — change station[/]  ")
+                        row1 = render_row(row1_arr, start + 1, colors) if row1_arr else _empty_row()
 
-            live.update(Group(
-                header,
-                Rule(style=SEP),
-                row1,
-                Rule(style=SEP),
-                row2,
-                footer,
-            ))
+                        if row2_arr:
+                            if flipping:
+                                row2 = render_flip_frame(row2_arr, start + 2, flip_frame, FLIP_FRAMES, colors)
+                            else:
+                                row2 = render_row(row2_arr, start + 2, colors)
+                        else:
+                            row2 = _empty_row()
 
-            # Check for keypress
-            try:
-                key = _key_queue.get_nowait()
-                if key == "r":
-                    if listener: listener.stop()
-                    return "back"
-                elif key in ("q",):
-                    if listener: listener.stop()
-                    return "quit"
-            except queue.Empty:
-                pass
+                    header = Align.center(f"[bold {TEXT}]{station_name}[/]")
+                    footer = Align.right(f"[dim #3a4a5e]r — change station[/]  ")
 
-            time.sleep(0.125)
+                    live.update(Group(
+                        header,
+                        Rule(style=SEP),
+                        row1,
+                        Rule(style=SEP),
+                        row2,
+                        footer,
+                    ))
+
+                    # Check for keypress
+                    try:
+                        key = _key_queue.get_nowait()
+                        if key == "r":
+                            if listener: listener.stop()
+                            return "back"
+                        elif key in ("q",):
+                            if listener: listener.stop()
+                            return "quit"
+                    except queue.Empty:
+                        pass
+
+                    time.sleep(0.125)
+        except KeyboardInterrupt:
+            if listener: listener.stop()
+            return "quit"
+        except Exception:
+            # If Live display crashes (terminal I/O error, etc.), restart it
+            # rather than falling back to the station search
+            time.sleep(0.5)
+            console.clear()
+            continue
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
